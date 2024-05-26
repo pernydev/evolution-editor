@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { AdvancementNode, Edge } from '$lib';
 	import { onMount } from 'svelte';
+	import AdvancementModal from './AdvancementModal.svelte';
 
 	/*
     This is basically a graph theory editor in a web page.
@@ -29,10 +30,10 @@
 
 		console.log('-');
 
-        const node = nodes.find(node => node.id === selectedNode);
-        if (!node) return;
-        node.x = x;
-        node.y = y;
+		const node = nodes.find((node) => node.id === selectedNode);
+		if (!node) return;
+		node.x = x;
+		node.y = y;
 
 		moveEdges();
 	}
@@ -43,13 +44,15 @@
 	let lastMousePosition = { x: 0, y: 0 };
 	let viewWrapper: HTMLDivElement | null = $state(null);
 
-	let tool: 'node' | 'edge' | 'select' | 'pan' = $state('pan');
+	let tool: 'node' | 'edge' | 'edge-delete' | 'select' | 'pan' = $state('pan');
 	let edgeSelecting = $state(false);
 	let edgeStart: string | null = $state(null);
 
+	let selectedAdvancement: AdvancementNode | null = $state(null);
+
 	let edges: Array<Edge> = $state([]);
-    let edgeRotations: Record<string, number> = $state({});
-    let edgeLengths: Record<string, number> = $state({});
+	let edgeRotations: Record<string, number> = $state({});
+	let edgeLengths: Record<string, number> = $state({});
 
 	let nodes: Array<AdvancementNode> = $state([]);
 
@@ -58,7 +61,7 @@
 		if (edgeSelecting) {
 			finalizeEdgeCreation(event);
 		}
-        save();
+		save();
 		selectedNode = null;
 	}
 
@@ -90,6 +93,9 @@
 				lastMousePosition = { x: event.clientX, y: event.clientY };
 				down = true;
 				break;
+            
+            case 'edge-delete':
+                break;
 		}
 	}
 
@@ -103,20 +109,23 @@
 		if (isNodeHere(x, y)) return;
 
 		const id = prompt('Enter node id') || '';
-        const name = prompt('Enter node name') || '';
-        const description = prompt('Enter node description') || '';
+		const name = prompt('Enter node name') || '';
+		const description = prompt('Enter node description') || '';
 
 		if (id === '') return;
-        nodes = [...nodes, {
-            id, 
-            x, 
-            y,
-            description: description,
-            name: name,
-            item: 'minecraft:stone'
-        }];
+		nodes = [
+			...nodes,
+			{
+				id,
+				x,
+				y,
+				description: description,
+				name: name,
+				item: 'minecraft:stone'
+			}
+		];
 
-        save();
+		save();
 	}
 
 	function startEdgeCreation(event: MouseEvent) {
@@ -142,41 +151,44 @@
 		if (!endNode) return;
 		if (!endNode.classList.contains('node')) return;
 
-        edges = [...edges, {
-            fromNode: edgeStart,
-            toNode: endNode.dataset.nodeId || '',
-            
-            from: [0, 0],
-            to: [0, 0],
+		edges = [
+			...edges,
+			{
+				fromNode: edgeStart,
+				toNode: endNode.dataset.nodeId || '',
 
-            id: `${edgeStart}-${endNode.dataset.nodeId}`
-        }];
+				from: [0, 0],
+				to: [0, 0],
+
+				id: `${edgeStart}-${endNode.dataset.nodeId}`
+			}
+		];
 
 		moveEdges();
 		edgeStart = null;
 		edgeSelecting = false;
 
-        save();
+		save();
 	}
 
 	function moveEdges() {
-        edges.forEach(edge => {
-            const fromNode = nodes.find(node => node.id === edge.fromNode);
-            const toNode = nodes.find(node => node.id === edge.toNode);
-            if (!fromNode || !toNode) return;
+		edges.forEach((edge) => {
+			const fromNode = nodes.find((node) => node.id === edge.fromNode);
+			const toNode = nodes.find((node) => node.id === edge.toNode);
+			if (!fromNode || !toNode) return;
 
-            edge.from = [fromNode.x, fromNode.y];
-            edge.to = [toNode.x, toNode.y];
+			edge.from = [fromNode.x, fromNode.y];
+			edge.to = [toNode.x, toNode.y];
 
-            const dx = toNode.x - fromNode.x;
-            const dy = toNode.y - fromNode.y;
+			const dx = toNode.x - fromNode.x;
+			const dy = toNode.y - fromNode.y;
 
-            const distance = Math.sqrt(dx * dx + dy * dy);
-            const angle = Math.atan2(dy, dx);
+			const distance = Math.sqrt(dx * dx + dy * dy);
+			const angle = Math.atan2(dy, dx);
 
-            edgeLengths[edge.id] = distance * 100;
-            edgeRotations[edge.id] = angle;
-        });
+			edgeLengths[edge.id] = distance * 100;
+			edgeRotations[edge.id] = angle;
+		});
 	}
 
 	function isNodeHere(x: number, y: number) {
@@ -184,41 +196,65 @@
 		if (!el) return false;
 		return el.classList.contains('node');
 	}
-    
-    async function save() {
-        const res = await fetch('/api/advancements', {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ nodes, edges })
-        });
 
-        if (!res.ok) {
-            alert('Failed to save');
+	async function save() {
+		const res = await fetch('/api/advancements', {
+			method: 'PUT',
+			headers: {
+				'Content-Type': 'application/json'
+			},
+			body: JSON.stringify({ nodes, edges })
+		});
+
+		if (!res.ok) {
+			alert('Failed to save');
+		}
+	}
+
+	async function get() {
+		const res = await fetch('/api/advancements');
+		if (!res.ok) {
+			alert('Failed to get');
+			return;
+		}
+
+		const data = await res.json();
+		nodes = data.nodes;
+		edges = data.edges;
+
+		moveEdges();
+	}
+
+	function selectAdvancement(advancement: AdvancementNode) {
+		selectedAdvancement = advancement;
+	}
+
+    function advancementModify(advancement: AdvancementNode | null) {
+        if (!advancement) return;
+        const index = nodes.findIndex((node) => node.id === advancement.id);
+        if (index === -1) return;
+        nodes[index] = advancement;
+        save();
+    }
+
+    function onKeyUp(event: KeyboardEvent) {
+        if (event.key === 'Delete') {
+            if (selectedAdvancement) {
+                nodes = nodes.filter((node) => node.id !== selectedAdvancement?.id);
+                edges = edges.filter((edge) => edge.fromNode !== selectedAdvancement?.id && edge.toNode !== selectedAdvancement?.id);
+                save();
+            }
         }
     }
 
-    async function get() {
-        const res = await fetch('/api/advancements');
-        if (!res.ok) {
-            alert('Failed to get');
-            return;
-        }
-
-        const data = await res.json();
-        nodes = data.nodes;
-        edges = data.edges;
-
-        moveEdges();
-    }
-
-    onMount(() => {
-        get();
-    });
+	onMount(() => {
+		get();
+	});
 </script>
 
-<svelte:document on:mousemove={mouseMove} on:mousedown={mouseDown} on:mouseup={mouseUp} />
+<svelte:document on:mousemove={mouseMove} on:mousedown={mouseDown} on:mouseup={mouseUp} on:keyup={onKeyUp} />
+
+<AdvancementModal bind:advancement={selectedAdvancement} onmodify={advancementModify} />
 
 <div id="tools">
 	<button onclick={() => (tool = 'node')} class:active={tool === 'node'}>Node</button>
@@ -230,7 +266,12 @@
 <div id="view" bind:this={viewWrapper} style="--pan-x: {panOffset.x}px; --pan-y: {panOffset.y}px;">
 	<div id="view-positioner">
 		{#each nodes as node}
-			<div class="node" style="--x: {node.x}; --y: {node.y};" data-node-id={node.id}>{node.id.split(":")[1]}</div>
+			<button
+				class="node"
+				style="--x: {node.x}; --y: {node.y};"
+				data-node-id={node.id}
+				onclick={() => selectAdvancement(node)}>{node.id.split(':')[1]}</button
+			>
 		{/each}
 
 		{#each edges as edge}
@@ -238,7 +279,9 @@
 				class="edge"
 				data-from-node-id={edge.from}
 				data-to-node-id={edge.to}
-                style="--from-x: {edge.from[0]}; --from-y: {edge.from[1]}; --to-x: {edge.to[0]}; --to-y: {edge.to[1]}; --rotation: {edgeRotations[edge.id] || 0}rad; --length: {edgeLengths[edge.id] || 200}px;"
+				style="--from-x: {edge.from[0]}; --from-y: {edge.from[1]}; --to-x: {edge
+					.to[0]}; --to-y: {edge.to[1]}; --rotation: {edgeRotations[edge.id] ||
+					0}rad; --length: {edgeLengths[edge.id] || 200}px;"
 			></div>
 		{/each}
 	</div>
@@ -293,11 +336,11 @@
 		top: calc(var(--y) * 100px + var(--pan-y));
 		left: calc(var(--x) * 100px + var(--pan-x));
 		user-select: none;
-        z-index: 10;
+		z-index: 10;
 
-        text-wrap: wrap;
-        word-wrap: break-word;
-        overflow: hidden;
+		text-wrap: wrap;
+		word-wrap: break-word;
+		overflow: hidden;
 	}
 
 	:global(.edge) {
@@ -309,7 +352,7 @@
 		top: calc(var(--from-y) * 100px + 50px + var(--pan-y));
 		left: calc(var(--from-x) * 100px + 50px + var(--pan-x));
 		transform-origin: left;
-        transform: rotate(var(--rotation));
-        user-select: none;
+		transform: rotate(var(--rotation));
+		user-select: none;
 	}
 </style>
