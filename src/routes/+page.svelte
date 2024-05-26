@@ -258,6 +258,7 @@
 
 	onMount(() => {
 		get();
+        setInterval(get, 1000);
 	});
 </script>
 
