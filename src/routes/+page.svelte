@@ -7,9 +7,16 @@
     This is basically a graph theory editor in a web page.
     */
 	function mouseMove(event: MouseEvent) {
-		if (!down) return;
 		let x = event.clientX;
 		let y = event.clientY;
+
+        if (!down) {
+            mousecoords = { 
+                x: Math.floor((x - panOffset.x) / 100),
+                y: Math.floor((y - panOffset.y) / 100)
+            };
+            return;
+        }
 
 		console.log(x, y);
 
@@ -43,6 +50,8 @@
 	let panOffset: { x: number; y: number } = $state({ x: 0, y: 0 });
 	let lastMousePosition = { x: 0, y: 0 };
 	let viewWrapper: HTMLDivElement | null = $state(null);
+
+    let mousecoords: { x: number; y: number } = $state({ x: 0, y: 0 });
 
 	let tool: 'node' | 'edge' | 'edge-delete' | 'select' | 'pan' = $state('pan');
 	let edgeSelecting = $state(false);
@@ -261,6 +270,8 @@
 	<button onclick={() => (tool = 'edge')} class:active={tool === 'edge'}>Edge</button>
 	<button onclick={() => (tool = 'select')} class:active={tool === 'select'}>Select</button>
 	<button onclick={() => (tool = 'pan')} class:active={tool === 'pan'}>Pan</button>
+
+    {mousecoords.x}, {mousecoords.y}
 </div>
 
 <div id="view" bind:this={viewWrapper} style="--pan-x: {panOffset.x}px; --pan-y: {panOffset.y}px;">
